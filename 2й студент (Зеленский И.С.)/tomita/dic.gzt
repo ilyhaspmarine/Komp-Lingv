@@ -1,0 +1,19 @@
+encoding "utf8";
+
+import "base.proto";
+import "articles_base.proto";
+import "fact_types.proto";
+import "kwtypes.proto";
+
+import "person.gzt";
+import "place.gzt";
+
+TAuxDicArticle "Персона"
+{
+	key = {"tomita:gramms/persons.cxx" type=CUSTOM}	
+}
+
+TAuxDicArticle "Место"
+{
+	key = {"tomita:gramms/places.cxx" type=CUSTOM}		
+}

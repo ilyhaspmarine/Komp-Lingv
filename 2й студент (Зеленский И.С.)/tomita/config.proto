@@ -1,0 +1,18 @@
+encoding "utf8";
+
+TTextMinerConfig {
+	Dictionary = "./tomita/dic.gzt"
+	Input = {Dir = "./input"}
+	Output = {File = "./output/output.xml"}
+//	PrettyOutput = "./output/pretty.html"
+
+	Articles = [
+		{Name = "Персона"}
+		{Name = "Место"}
+	]
+
+	Facts = [	
+		{Name = "Person"}
+		{Name = "Place"}
+	]
+}
