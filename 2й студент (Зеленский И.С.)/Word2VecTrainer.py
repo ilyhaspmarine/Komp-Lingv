@@ -32,7 +32,7 @@ class W2VTrainer:
 
         input_file = spark.sparkContext.textFile('./w2v.txt')
 
-        print(input_file.collect())
+        # print(input_file.collect())
         prepared = input_file.map(lambda x: ([x]))
         df = prepared.toDF()
         prepared_df = df.selectExpr('_1 as text')
@@ -44,31 +44,35 @@ class W2VTrainer:
         remover = StopWordsRemover(inputCol='words', outputCol='filtered', stopWords=stop_words)
         filtered = remover.transform(words)
 
-        print(stop_words)
+        # print(stop_words)
 
-        filtered.show()
+        # filtered.show()
 
-        words.select('words').show(truncate=False, vertical=True)
+        # words.select('words').show(truncate=False, vertical=True)
 
-        filtered.select('filtered').show(truncate=False, vertical=True)
+        # filtered.select('filtered').show(truncate=False, vertical=True)
 
         vectorizer = CountVectorizer(inputCol='filtered', outputCol='raw_features').fit(filtered)
         featurized_data = vectorizer.transform(filtered)
         featurized_data.cache()
         vocabulary = vectorizer.vocabulary
 
-        featurized_data.show()
+        # featurized_data.show()
 
-        featurized_data.select('raw_features').show(truncate=False, vertical=True)
+        # featurized_data.select('raw_features').show(truncate=False, vertical=True)
 
-        print(vocabulary)
+        # print(vocabulary)
 
         idf = IDF(inputCol='raw_features', outputCol='features')
         idf_model = idf.fit(featurized_data)
         rescaled_data = idf_model.transform(featurized_data)
 
-        word2Vec = Word2Vec(vectorSize=3, minCount=0, inputCol='words', outputCol='result')
-        self.__model = word2Vec.fit(words)
+        self.__word2Vec = Word2Vec(vectorSize=3, minCount=0, inputCol='words', outputCol='result')
+        self.__model = self.__word2Vec.fit(filtered)
         w2v_df = self.__model.transform(words)
         w2v_df.show()
         spark.stop()
+
+    def get_syn(self, src):
+        self.__model.findSynonyms(src, 10).show()
+
