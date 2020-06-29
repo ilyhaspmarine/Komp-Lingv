@@ -3,14 +3,25 @@ import os
 from pyspark.sql import SparkSession
 from pyspark.ml.feature import Tokenizer
 from pyspark.ml.feature import StopWordsRemover
-from pyspark.ml.feature import CountVectorizer
-from pyspark.ml.feature import IDF
 from pyspark.ml.feature import Word2Vec
+from pyspark.ml.feature import CountVectorizer
+import string
+import re
 
 class W2VTrainer:
 
     def __init__(self):
+        self.__model = None
+        self.__word2Vec = None
         os.environ["PYSPARK_PYTHON"] = "/usr/bin/python3"
+
+    # Удаление пунктуации из текста
+    def __remove_punctuation(sel, text):
+        return text.translate(str.maketrans('', '', string.punctuation))
+
+    # Удаление разрыва строк из текста
+    def __remove_linebreaks(self, text):
+        return text.strip()
 
     def __prepare(self):
         db = DBContext()
@@ -21,6 +32,9 @@ class W2VTrainer:
         with open('./w2v.txt', 'w', encoding='utf-8') as f:
             f.write(text)
 
+    def __get_only_words(self, tokens):
+        return list(filter(lambda x: re.match(r'[а-яА-Я]+', x), tokens))
+
     def train(self):
 
         self.__prepare()
@@ -30,49 +44,30 @@ class W2VTrainer:
             .appName("Kursach")\
             .getOrCreate()
 
-        input_file = spark.sparkContext.textFile('./w2v.txt')
+        input_data = spark.sparkContext.textFile('./w2v.txt')
 
-        # print(input_file.collect())
-        prepared = input_file.map(lambda x: ([x]))
-        df = prepared.toDF()
-        prepared_df = df.selectExpr('_1 as text')
+        prepared = input_data.map(lambda x: [x])\
+            .map(lambda x: (self.__remove_linebreaks(x[0]), '1'))\
+            .map(lambda x: (self.__remove_punctuation(x[0]), '1'))
+        prepared_df = prepared.toDF().selectExpr('_1 as text')
 
         tokenizer = Tokenizer(inputCol='text', outputCol='words')
         words = tokenizer.transform(prepared_df)
 
+        filtered_words_data = words.rdd.map(lambda x: (x[0], self.__get_only_words(x[1])))
+        filtered_df = filtered_words_data.toDF().selectExpr('_1 as text', '_2 as words')
+
         stop_words = StopWordsRemover.loadDefaultStopWords('russian')
         remover = StopWordsRemover(inputCol='words', outputCol='filtered', stopWords=stop_words)
-        filtered = remover.transform(words)
+        filtered = remover.transform(filtered_df)
 
-        # print(stop_words)
-
-        # filtered.show()
-
-        # words.select('words').show(truncate=False, vertical=True)
-
-        # filtered.select('filtered').show(truncate=False, vertical=True)
-
-        vectorizer = CountVectorizer(inputCol='filtered', outputCol='raw_features').fit(filtered)
-        featurized_data = vectorizer.transform(filtered)
-        featurized_data.cache()
-        vocabulary = vectorizer.vocabulary
-
-        # featurized_data.show()
-
-        # featurized_data.select('raw_features').show(truncate=False, vertical=True)
-
-        # print(vocabulary)
-
-        idf = IDF(inputCol='raw_features', outputCol='features')
-        idf_model = idf.fit(featurized_data)
-        rescaled_data = idf_model.transform(featurized_data)
-
-        self.__word2Vec = Word2Vec(vectorSize=3, minCount=0, inputCol='words', outputCol='result')
+        self.__word2Vec = Word2Vec(vectorSize=3, minCount=0, inputCol='filtered', outputCol='result')
         self.__model = self.__word2Vec.fit(filtered)
-        w2v_df = self.__model.transform(words)
+        w2v_df = self.__model.transform(filtered)
         w2v_df.show()
         spark.stop()
 
     def get_syn(self, src):
+        print(src + '\n')
         self.__model.findSynonyms(src, 10).show()
 
